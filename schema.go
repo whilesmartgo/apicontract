@@ -37,6 +37,10 @@ func OpenAPIParameters(v any) ([]map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	return p.openAPI(), nil
+}
+
+func (p *plan) openAPI() []map[string]any {
 	parameters := make([]map[string]any, 0, len(p.params))
 	for _, item := range p.params {
 		parameter := map[string]any{"name": item.name, "in": "query", "schema": item.schema()}
@@ -51,13 +55,13 @@ func OpenAPIParameters(v any) ([]map[string]any, error) {
 		}
 		parameters = append(parameters, parameter)
 	}
-	return parameters, nil
+	return parameters
 }
 
 func (item param) schema() map[string]any {
 	schema := map[string]any{}
 	switch item.typ {
-	case typeString:
+	case FieldString:
 		schema["type"] = "string"
 		if item.maxLength > 0 {
 			schema["maxLength"] = item.maxLength
@@ -65,7 +69,7 @@ func (item param) schema() map[string]any {
 		if len(item.enum) > 0 {
 			schema["enum"] = item.enum
 		}
-	case typeInt:
+	case FieldInt:
 		schema["type"] = "integer"
 		if item.minimum != nil {
 			schema["minimum"] = *item.minimum
@@ -73,19 +77,19 @@ func (item param) schema() map[string]any {
 		if item.maximum != nil {
 			schema["maximum"] = *item.maximum
 		}
-	case typeBool:
+	case FieldBool:
 		schema["type"] = "boolean"
-	case typeTime:
+	case FieldTime:
 		schema["type"] = "string"
 		schema["anyOf"] = []any{map[string]any{"format": "date-time"}, map[string]any{"format": "date"}}
-	case typeLocation:
+	case FieldLocation:
 		schema["type"] = "string"
-	case typeStrings:
+	case FieldStrings:
 		schema["type"] = "string"
 		if len(item.enum) > 0 {
 			schema["pattern"] = "^(" + alternation(item.enum) + ")(,(" + alternation(item.enum) + "))*$"
 		}
-	case typeSort:
+	case FieldSort:
 		schema["type"] = "string"
 		fields := "[a-z][a-z0-9_]*"
 		if len(item.enum) > 0 {
@@ -94,7 +98,7 @@ func (item param) schema() map[string]any {
 		schema["pattern"] = "^-?" + fields + "(,-?" + fields + ")*$"
 	}
 	if item.defaultRaw != "" {
-		if item.typ == typeInt {
+		if item.typ == FieldInt {
 			if number, err := strconv.Atoi(item.defaultRaw); err == nil {
 				schema["default"] = number
 			}
@@ -120,4 +124,14 @@ func alternation(values []string) string {
 		quoted[i] = regexp.QuoteMeta(value)
 	}
 	return strings.Join(quoted, "|")
+}
+
+// OpenAPIParametersOf is OpenAPIParameters for a struct described by fields
+// instead of a value.
+func OpenAPIParametersOf(fields []Field) ([]map[string]any, error) {
+	p, err := planOf(fields)
+	if err != nil {
+		return nil, err
+	}
+	return p.openAPI(), nil
 }

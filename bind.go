@@ -58,7 +58,7 @@ func BindValues(values url.Values, dst any) error {
 
 	location := time.UTC
 	for i, item := range p.params {
-		if item.typ != typeLocation || !present[i] {
+		if item.typ != FieldLocation || !present[i] {
 			continue
 		}
 		loaded, err := loadLocation(raw[i])
@@ -71,7 +71,7 @@ func BindValues(values url.Values, dst any) error {
 	}
 
 	for i, item := range p.params {
-		if item.typ == typeLocation {
+		if item.typ == FieldLocation {
 			continue
 		}
 		name, value := used[i], raw[i]
@@ -128,7 +128,7 @@ func (item param) set(field reflect.Value, name, value string, location *time.Lo
 		return &FieldError{Name: name, Code: code, Message: message}, false
 	}
 	switch item.typ {
-	case typeString:
+	case FieldString:
 		if item.maxLength > 0 && len(value) > item.maxLength {
 			return rule(FieldTooLong, fmt.Sprintf("must be at most %d bytes", item.maxLength))
 		}
@@ -136,7 +136,7 @@ func (item param) set(field reflect.Value, name, value string, location *time.Lo
 			return rule(FieldUnknownValue, "must be one of "+strings.Join(item.enum, ", "))
 		}
 		field.SetString(value)
-	case typeInt:
+	case FieldInt:
 		number, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
 			return invalid("must be an integer")
@@ -154,19 +154,19 @@ func (item param) set(field reflect.Value, name, value string, location *time.Lo
 			return rule(FieldOutOfRange, "is too large")
 		}
 		field.SetInt(number)
-	case typeBool:
+	case FieldBool:
 		flag, err := strconv.ParseBool(value)
 		if err != nil {
 			return invalid("must be true or false")
 		}
 		field.SetBool(flag)
-	case typeTime:
+	case FieldTime:
 		moment, err := parseTime(value, location, item.end)
 		if err != nil {
 			return invalid("must be an RFC 3339 timestamp with offset or a YYYY-MM-DD day")
 		}
 		field.Set(reflect.ValueOf(moment))
-	case typeStrings:
+	case FieldStrings:
 		parts := splitList(value)
 		if parts == nil {
 			return invalid("must be a comma-separated list")
@@ -177,7 +177,7 @@ func (item param) set(field reflect.Value, name, value string, location *time.Lo
 			}
 		}
 		field.Set(reflect.ValueOf(parts))
-	case typeSort:
+	case FieldSort:
 		parts := splitList(value)
 		if parts == nil {
 			return invalid("must be a comma-separated list of fields, each optionally prefixed with -")

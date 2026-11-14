@@ -43,17 +43,36 @@ type SortKey struct {
 	Desc  bool
 }
 
-type paramType int
+// FieldType classifies a struct field for parameter description.
+type FieldType int
 
 const (
-	typeString paramType = iota
-	typeInt
-	typeBool
-	typeTime
-	typeLocation
-	typeSort
-	typeStrings
+	FieldOther FieldType = iota
+	FieldString
+	FieldInt
+	FieldBool
+	FieldTime
+	FieldLocation
+	FieldSort
+	FieldStrings
+	FieldStruct
 )
+
+// Field describes one struct field. Static tools that read Go source, such as
+// OpenAPI generators, build Fields from the source types and pass them to
+// OpenAPIParametersOf, so they describe a parameter struct exactly as
+// BindQuery reads it. Fields lists every field of the struct in order.
+type Field struct {
+	Name      string
+	Exported  bool
+	Anonymous bool
+	Type      FieldType
+	Tag       reflect.StructTag
+	// Range is true when the field's type is apicontract.Range.
+	Range bool
+	// Fields holds the nested fields when Type is FieldStruct.
+	Fields []Field
+}
 
 var (
 	timeType     = reflect.TypeOf(time.Time{})
@@ -63,10 +82,45 @@ var (
 	rangeType    = reflect.TypeOf(Range{})
 )
 
+func fieldsOf(t reflect.Type) []Field {
+	fields := make([]Field, t.NumField())
+	for i := range fields {
+		field := t.Field(i)
+		fields[i] = Field{Name: field.Name, Exported: field.IsExported(), Anonymous: field.Anonymous, Tag: field.Tag, Type: fieldType(field.Type)}
+		if fields[i].Type == FieldStruct {
+			fields[i].Range = field.Type == rangeType
+			fields[i].Fields = fieldsOf(field.Type)
+		}
+	}
+	return fields
+}
+
+func fieldType(t reflect.Type) FieldType {
+	switch {
+	case t == timeType:
+		return FieldTime
+	case t == locationType:
+		return FieldLocation
+	case t == sortType:
+		return FieldSort
+	case t == stringsType:
+		return FieldStrings
+	case t.Kind() == reflect.Struct:
+		return FieldStruct
+	case t.Kind() == reflect.String:
+		return FieldString
+	case t.Kind() == reflect.Bool:
+		return FieldBool
+	case t.Kind() >= reflect.Int && t.Kind() <= reflect.Int64:
+		return FieldInt
+	}
+	return FieldOther
+}
+
 type param struct {
 	index       []int
 	name        string
-	typ         paramType
+	typ         FieldType
 	doc         string
 	required    bool
 	deprecated  bool
@@ -95,24 +149,31 @@ func planFor(t reflect.Type) (*plan, error) {
 	if cached, ok := plans.Load(t); ok {
 		return cached.(*plan), nil
 	}
-	if t.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("apicontract: %s is not a struct", t)
+	if t == nil || t.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("apicontract: %v is not a struct", t)
 	}
-	p := &plan{}
-	if err := p.walk(t, nil, ""); err != nil {
-		return nil, err
-	}
-	if err := p.check(); err != nil {
+	p, err := planOf(fieldsOf(t))
+	if err != nil {
 		return nil, err
 	}
 	plans.Store(t, p)
 	return p, nil
 }
 
-func (p *plan) walk(t reflect.Type, index []int, prefix string) error {
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		if !field.IsExported() {
+func planOf(fields []Field) (*plan, error) {
+	p := &plan{}
+	if err := p.walk(fields, nil, ""); err != nil {
+		return nil, err
+	}
+	if err := p.check(); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+func (p *plan) walk(fields []Field, index []int, prefix string) error {
+	for i, field := range fields {
+		if !field.Exported {
 			continue
 		}
 		tag, hasTag := field.Tag.Lookup("query")
@@ -120,7 +181,7 @@ func (p *plan) walk(t reflect.Type, index []int, prefix string) error {
 			continue
 		}
 		path := append(append([]int(nil), index...), i)
-		if field.Type.Kind() == reflect.Struct && field.Type != timeType {
+		if field.Type == FieldStruct {
 			nested := prefix
 			if hasTag && tag != "" {
 				nested = prefix + tag + "_"
@@ -128,10 +189,10 @@ func (p *plan) walk(t reflect.Type, index []int, prefix string) error {
 				continue
 			}
 			start := len(p.params)
-			if err := p.walk(field.Type, path, nested); err != nil {
+			if err := p.walk(field.Fields, path, nested); err != nil {
 				return err
 			}
-			if field.Type == rangeType {
+			if field.Range {
 				p.ranges = append(p.ranges, rangeGroup{from: start, to: start + 1})
 			}
 			continue
@@ -148,25 +209,10 @@ func (p *plan) walk(t reflect.Type, index []int, prefix string) error {
 	return nil
 }
 
-func newParam(field reflect.StructField, index []int, name string) (param, error) {
-	item := param{index: index, name: name, doc: field.Tag.Get("doc")}
-	switch {
-	case field.Type == timeType:
-		item.typ = typeTime
-	case field.Type == locationType:
-		item.typ = typeLocation
-	case field.Type == sortType:
-		item.typ = typeSort
-	case field.Type == stringsType:
-		item.typ = typeStrings
-	case field.Type.Kind() == reflect.String:
-		item.typ = typeString
-	case field.Type.Kind() == reflect.Bool:
-		item.typ = typeBool
-	case field.Type.Kind() >= reflect.Int && field.Type.Kind() <= reflect.Int64:
-		item.typ = typeInt
-	default:
-		return item, fmt.Errorf("apicontract: query parameter %s has unsupported type %s", name, field.Type)
+func newParam(field Field, index []int, name string) (param, error) {
+	item := param{index: index, name: name, doc: field.Tag.Get("doc"), typ: field.Type}
+	if field.Type == FieldOther {
+		return item, fmt.Errorf("apicontract: query parameter %s has an unsupported type", name)
 	}
 	item.required = field.Tag.Get("required") == "true"
 	item.end = field.Tag.Get("bound") == "end"

@@ -3,6 +3,7 @@ package apicontract_test
 import (
 	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/whilesmartgo/apicontract"
@@ -70,4 +71,31 @@ func readSchema(t *testing.T, path string) map[string]any {
 		t.Fatal(err)
 	}
 	return schema
+}
+
+func TestOpenAPIParametersOfMatchesReflection(t *testing.T) {
+	tagOf := func(v any, i int) reflect.StructTag { return reflect.TypeOf(v).Field(i).Tag }
+	fields := []apicontract.Field{
+		{Name: "Page", Exported: true, Anonymous: true, Type: apicontract.FieldStruct, Fields: []apicontract.Field{
+			{Name: "Limit", Exported: true, Type: apicontract.FieldInt, Tag: tagOf(apicontract.Page{}, 0)},
+			{Name: "Cursor", Exported: true, Type: apicontract.FieldString, Tag: tagOf(apicontract.Page{}, 1)},
+		}},
+		{Name: "Updated", Exported: true, Type: apicontract.FieldStruct, Range: true, Tag: `query:"updated"`, Fields: []apicontract.Field{
+			{Name: "From", Exported: true, Type: apicontract.FieldTime, Tag: tagOf(apicontract.Range{}, 0)},
+			{Name: "To", Exported: true, Type: apicontract.FieldTime, Tag: tagOf(apicontract.Range{}, 1)},
+		}},
+		{Name: "Linked", Exported: true, Type: apicontract.FieldBool, Tag: `query:"linked"`},
+		{Name: "Owner", Exported: true, Type: apicontract.FieldString, Tag: `query:"owner_id" required:"true"`},
+	}
+	static, err := apicontract.OpenAPIParametersOf(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reflected, err := apicontract.OpenAPIParameters(notesQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(static, reflected) {
+		t.Fatalf("static %v\nreflected %v", static, reflected)
+	}
 }
