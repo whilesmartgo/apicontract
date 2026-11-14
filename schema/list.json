@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/whilesmartgo/apicontract/schema/list.json",
+  "title": "List envelope",
+  "description": "Response body of every collection route.",
+  "type": "object",
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "description": "The items on this page. Empty, never null, when nothing matches."
+    },
+    "next_cursor": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "Opaque cursor for the next page. Absent on the last page."
+    },
+    "total": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Exact number of matching items. Present only when it is cheap to compute."
+    }
+  }
+}

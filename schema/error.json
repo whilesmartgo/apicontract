@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/whilesmartgo/apicontract/schema/error.json",
+  "title": "Error body",
+  "description": "Response body of every 4xx and 5xx response. Status 400 means the request could not be parsed; 422 means it was parsed but breaks a rule.",
+  "type": "object",
+  "required": ["error", "code"],
+  "properties": {
+    "error": {
+      "type": "string",
+      "description": "Message for people. Do not branch on it."
+    },
+    "code": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+      "description": "Stable snake_case code for programs."
+    },
+    "fields": {
+      "type": "array",
+      "description": "One entry per request parameter or body field at fault.",
+      "items": {
+        "type": "object",
+        "required": ["name", "code", "message"],
+        "properties": {
+          "name": {"type": "string", "description": "Parameter or field name as the client sent it."},
+          "code": {"type": "string", "enum": ["invalid", "required", "out_of_range", "too_long", "unknown_value", "conflict", "invalid_cursor"]},
+          "message": {"type": "string"}
+        }
+      }
+    }
+  }
+}

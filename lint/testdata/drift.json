@@ -1,0 +1,37 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "Drifting API", "version": "1.0.0"},
+  "paths": {
+    "/events": {
+      "get": {
+        "parameters": [
+          {"name": "from", "in": "query", "schema": {"type": "string"}},
+          {"name": "to", "in": "query", "schema": {"type": "string"}}
+        ],
+        "responses": {"200": {"description": "Success"}}
+      }
+    },
+    "/messages": {
+      "get": {
+        "parameters": [
+          {"name": "page", "in": "query", "schema": {"type": "integer"}},
+          {"name": "page_size", "in": "query", "schema": {"type": "integer"}},
+          {"name": "folderId", "in": "query", "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {"description": "Page", "content": {"application/json": {"schema": {"type": "object", "properties": {"data": {"type": "array", "items": {}}, "total": {"type": "integer"}}}}}},
+          "400": {"description": "Bad request"}
+        }
+      }
+    },
+    "/tags": {
+      "get": {
+        "responses": {"200": {"description": "Tags", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Tags"}}}}}
+      }
+    },
+    "/tags/{id}": {
+      "delete": {"responses": {"204": {"description": "Deleted"}}}
+    }
+  },
+  "components": {"schemas": {"Tags": {"type": "array", "items": {"type": "string"}}}}
+}

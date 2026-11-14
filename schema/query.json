@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/whilesmartgo/apicontract/schema/query.json",
+  "title": "Shared query parameters",
+  "description": "Query parameters shared by list and search routes. A route accepts the ones that apply to it. A time range on a named field uses that field as a prefix, such as updated_from and updated_to.",
+  "type": "object",
+  "properties": {
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200,
+      "default": 50,
+      "description": "Maximum number of items to return. Values above 200 return 200."
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "Opaque cursor from next_cursor of the previous page. Valid only for the same query and the same caller."
+    },
+    "from": {
+      "type": "string",
+      "anyOf": [{"format": "date-time"}, {"format": "date"}],
+      "description": "Start of the range, inclusive. RFC 3339 timestamp with offset, or a YYYY-MM-DD day meaning the start of that day."
+    },
+    "to": {
+      "type": "string",
+      "anyOf": [{"format": "date-time"}, {"format": "date"}],
+      "description": "End of the range. A timestamp is exclusive. A YYYY-MM-DD day includes that whole day."
+    },
+    "tz": {
+      "type": "string",
+      "description": "IANA time zone used to resolve YYYY-MM-DD days. Defaults to UTC."
+    },
+    "q": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Free-text search."
+    },
+    "sort": {
+      "type": "string",
+      "pattern": "^-?[a-z][a-z0-9_]*(,-?[a-z][a-z0-9_]*)*$",
+      "description": "Comma-separated fields. A leading - sorts that field descending."
+    }
+  }
+}
