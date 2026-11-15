@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-11-15)
 
 - Parse list and search query parameters into typed structs, with days and timestamps in ranges, clamped limits and declared deprecated aliases.
 - Write the list envelope and the error body, with 400 for malformed query values and 422 for rule violations when no value is malformed.
