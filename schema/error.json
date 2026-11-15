@@ -1,30 +1,46 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/whilesmartgo/apicontract/schema/error.json",
-  "title": "Error body",
-  "description": "Response body of every 4xx and 5xx response. Status 400 means the request could not be parsed; 422 means it was parsed but breaks a rule.",
+  "title": "Problem details",
+  "description": "Body of every 4xx and 5xx response, sent as application/problem+json (RFC 9457). code and errors are extension members.",
   "type": "object",
-  "required": ["error", "code"],
+  "required": ["title", "status", "code"],
   "properties": {
-    "error": {
+    "type": {
       "type": "string",
-      "description": "Message for people. Do not branch on it."
+      "format": "uri",
+      "description": "URI of the documentation for this kind of problem. Absent means about:blank."
+    },
+    "title": {
+      "type": "string",
+      "description": "Short summary of the kind of problem, for people. Do not branch on it."
+    },
+    "status": {
+      "type": "integer",
+      "minimum": 400,
+      "maximum": 599,
+      "description": "HTTP status code of the response."
+    },
+    "detail": {
+      "type": "string",
+      "description": "Explanation of this occurrence, for people."
     },
     "code": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
       "description": "Stable snake_case code for programs."
     },
-    "fields": {
+    "errors": {
       "type": "array",
-      "description": "One entry per request parameter or body field at fault.",
+      "description": "One entry per query parameter, header or body field at fault.",
       "items": {
         "type": "object",
-        "required": ["name", "code", "message"],
+        "required": ["in", "name", "code", "detail"],
         "properties": {
-          "name": {"type": "string", "description": "Parameter or field name as the client sent it."},
-          "code": {"type": "string", "enum": ["invalid", "required", "out_of_range", "too_long", "unknown_value", "conflict", "invalid_cursor"]},
-          "message": {"type": "string"}
+          "in": {"type": "string", "enum": ["query", "body", "header"]},
+          "name": {"type": "string", "description": "Parameter or header name, or body field path such as attendees[2].email, as the client sent it."},
+          "code": {"type": "string", "enum": ["invalid", "required", "out_of_range", "too_long", "too_many", "unknown_value", "unknown_field", "conflict", "invalid_cursor"]},
+          "detail": {"type": "string"}
         }
       }
     }

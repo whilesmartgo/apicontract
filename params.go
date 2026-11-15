@@ -1,7 +1,10 @@
 package apicontract
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
+	"math/big"
 	"reflect"
 	"strconv"
 	"strings"
@@ -43,7 +46,7 @@ type SortKey struct {
 	Desc  bool
 }
 
-// FieldType classifies a struct field for parameter description.
+// FieldType classifies a struct field for parameter and body description.
 type FieldType int
 
 const (
@@ -56,82 +59,203 @@ const (
 	FieldSort
 	FieldStrings
 	FieldStruct
+	FieldNumber
+	FieldDate
+	FieldList
+	FieldAny
+	FieldObject
 )
 
 // Field describes one struct field. Static tools that read Go source, such as
 // OpenAPI generators, build Fields from the source types and pass them to
-// OpenAPIParametersOf, so they describe a parameter struct exactly as
-// BindQuery reads it. Fields lists every field of the struct in order.
+// OpenAPIParametersOf or OpenAPIRequestBodyOf, so they describe a struct
+// exactly as BindQuery and BindJSON read it. Fields lists every field of the
+// struct in order.
 type Field struct {
 	Name      string
 	Exported  bool
 	Anonymous bool
 	Type      FieldType
 	Tag       reflect.StructTag
+	// Pointer is true when the field is a pointer to Type. A pointer body
+	// field accepts null.
+	Pointer bool
+	// Bits is the size of an integer or floating-point type, such as 8 for
+	// int8. Zero means 64.
+	Bits int
 	// Range is true when the field's type is apicontract.Range.
 	Range bool
 	// Fields holds the nested fields when Type is FieldStruct.
 	Fields []Field
+	// Elem describes the element type when Type is FieldList.
+	Elem *Field
 }
 
 var (
 	timeType     = reflect.TypeOf(time.Time{})
+	dateType     = reflect.TypeOf(Date{})
 	locationType = reflect.TypeOf((*time.Location)(nil))
 	sortType     = reflect.TypeOf([]SortKey(nil))
 	stringsType  = reflect.TypeOf([]string(nil))
 	rangeType    = reflect.TypeOf(Range{})
+	rawType      = reflect.TypeOf(json.RawMessage(nil))
 )
 
 func fieldsOf(t reflect.Type) []Field {
+	return fieldsIn(t, map[reflect.Type]bool{})
+}
+
+func fieldsIn(t reflect.Type, seen map[reflect.Type]bool) []Field {
+	seen[t] = true
+	defer delete(seen, t)
 	fields := make([]Field, t.NumField())
 	for i := range fields {
 		field := t.Field(i)
-		fields[i] = Field{Name: field.Name, Exported: field.IsExported(), Anonymous: field.Anonymous, Tag: field.Tag, Type: fieldType(field.Type)}
-		if fields[i].Type == FieldStruct {
-			fields[i].Range = field.Type == rangeType
-			fields[i].Fields = fieldsOf(field.Type)
-		}
+		fields[i] = describe(field.Type, seen)
+		fields[i].Name, fields[i].Exported, fields[i].Anonymous, fields[i].Tag = field.Name, field.IsExported(), field.Anonymous, field.Tag
 	}
 	return fields
+}
+
+func describe(t reflect.Type, seen map[reflect.Type]bool) Field {
+	if t == locationType {
+		return Field{Type: FieldLocation}
+	}
+	if t.Kind() == reflect.Pointer {
+		field := describe(t.Elem(), seen)
+		if field.Pointer || field.Type == FieldLocation {
+			return Field{Type: FieldOther}
+		}
+		field.Pointer = true
+		return field
+	}
+	field := Field{Type: fieldType(t)}
+	switch field.Type {
+	case FieldInt, FieldNumber:
+		field.Bits = t.Bits()
+	case FieldStruct:
+		if seen[t] {
+			return Field{Type: FieldOther}
+		}
+		field.Range = t == rangeType
+		field.Fields = fieldsIn(t, seen)
+	case FieldList:
+		elem := describe(t.Elem(), seen)
+		field.Elem = &elem
+	}
+	return field
 }
 
 func fieldType(t reflect.Type) FieldType {
 	switch {
 	case t == timeType:
 		return FieldTime
-	case t == locationType:
-		return FieldLocation
+	case t == dateType:
+		return FieldDate
 	case t == sortType:
 		return FieldSort
 	case t == stringsType:
 		return FieldStrings
+	case t == rawType, t.Kind() == reflect.Interface && t.NumMethod() == 0:
+		return FieldAny
+	case t.Kind() == reflect.Map && t.Key().Kind() == reflect.String && t.Elem().Kind() == reflect.Interface && t.Elem().NumMethod() == 0:
+		return FieldObject
 	case t.Kind() == reflect.Struct:
 		return FieldStruct
+	case t.Kind() == reflect.Slice:
+		return FieldList
 	case t.Kind() == reflect.String:
 		return FieldString
 	case t.Kind() == reflect.Bool:
 		return FieldBool
 	case t.Kind() >= reflect.Int && t.Kind() <= reflect.Int64:
 		return FieldInt
+	case t.Kind() == reflect.Float32 || t.Kind() == reflect.Float64:
+		return FieldNumber
 	}
 	return FieldOther
 }
 
-type param struct {
-	index       []int
-	name        string
-	typ         FieldType
+// rules are the validation tags shared by query parameters and body fields.
+type rules struct {
 	doc         string
 	required    bool
 	deprecated  bool
 	replacement string
 	defaultRaw  string
-	minimum     *int
-	maximum     *int
+	minimum     *float64
+	maximum     *float64
+	minInt      *int64
+	maxInt      *int64
+	bits        int
 	clamp       bool
 	maxLength   int
+	maxItems    int
 	enum        []string
 	end         bool
+}
+
+func parseRules(tag reflect.StructTag, name string) (rules, error) {
+	r := rules{doc: tag.Get("doc"), defaultRaw: tag.Get("default")}
+	r.required = tag.Get("required") == "true"
+	r.end = tag.Get("bound") == "end"
+	r.clamp = tag.Get("clamp") == "true"
+	if value, ok := tag.Lookup("deprecated"); ok {
+		r.deprecated = true
+		if value != "" && value != "-" {
+			r.replacement = value
+		}
+	}
+	if value := tag.Get("enum"); value != "" {
+		r.enum = strings.Split(value, ",")
+	}
+	for _, bound := range []struct {
+		key     string
+		target  **float64
+		integer **int64
+	}{{"minimum", &r.minimum, &r.minInt}, {"maximum", &r.maximum, &r.maxInt}} {
+		value := tag.Get(bound.key)
+		if value == "" {
+			continue
+		}
+		number, err := strconv.ParseFloat(value, 64)
+		if err != nil || math.IsInf(number, 0) || math.IsNaN(number) {
+			return r, fmt.Errorf("apicontract: %s of %s is not a number", bound.key, name)
+		}
+		*bound.target = &number
+		if exact, ok := new(big.Rat).SetString(value); ok {
+			whole := new(big.Int).Div(exact.Num(), exact.Denom())
+			if bound.key == "minimum" && !exact.IsInt() {
+				whole.Add(whole, big.NewInt(1))
+			}
+			if whole.IsInt64() {
+				integer := whole.Int64()
+				*bound.integer = &integer
+			}
+		}
+	}
+	for _, limit := range []struct {
+		key    string
+		target *int
+	}{{"maxLength", &r.maxLength}, {"maxItems", &r.maxItems}} {
+		value := tag.Get(limit.key)
+		if value == "" {
+			continue
+		}
+		number, err := strconv.Atoi(value)
+		if err != nil || number < 1 {
+			return r, fmt.Errorf("apicontract: %s of %s is not a positive integer", limit.key, name)
+		}
+		*limit.target = number
+	}
+	return r, nil
+}
+
+type param struct {
+	rules
+	index []int
+	name  string
+	typ   FieldType
 }
 
 type rangeGroup struct {
@@ -188,6 +312,9 @@ func (p *plan) walk(fields []Field, index []int, prefix string) error {
 			} else if !field.Anonymous {
 				continue
 			}
+			if field.Pointer {
+				return fmt.Errorf("apicontract: query struct %s must not be a pointer", field.Name)
+			}
 			start := len(p.params)
 			if err := p.walk(field.Fields, path, nested); err != nil {
 				return err
@@ -210,45 +337,78 @@ func (p *plan) walk(fields []Field, index []int, prefix string) error {
 }
 
 func newParam(field Field, index []int, name string) (param, error) {
-	item := param{index: index, name: name, doc: field.Tag.Get("doc"), typ: field.Type}
-	if field.Type == FieldOther {
+	item := param{index: index, name: name, typ: field.Type}
+	switch field.Type {
+	case FieldString, FieldInt, FieldBool, FieldTime, FieldDate, FieldLocation, FieldSort, FieldStrings:
+	default:
 		return item, fmt.Errorf("apicontract: query parameter %s has an unsupported type", name)
 	}
-	item.required = field.Tag.Get("required") == "true"
-	item.end = field.Tag.Get("bound") == "end"
-	item.clamp = field.Tag.Get("clamp") == "true"
-	item.defaultRaw = field.Tag.Get("default")
-	if value, ok := field.Tag.Lookup("deprecated"); ok {
-		item.deprecated = true
-		if value != "" && value != "-" {
-			item.replacement = value
-		}
+	if field.Pointer {
+		return item, fmt.Errorf("apicontract: query parameter %s must not be a pointer", name)
 	}
-	if value := field.Tag.Get("enum"); value != "" {
-		item.enum = strings.Split(value, ",")
+	r, err := parseRules(field.Tag, name)
+	if err != nil {
+		return item, err
 	}
-	for _, bound := range []struct {
-		key    string
-		target **int
-	}{{"minimum", &item.minimum}, {"maximum", &item.maximum}} {
-		value := field.Tag.Get(bound.key)
-		if value == "" {
-			continue
+	r.bits = field.Bits
+	item.rules = r
+	if item.defaultRaw != "" {
+		if err := item.checkDefault(); err != nil {
+			return item, fmt.Errorf("apicontract: default of %s: %w", name, err)
 		}
-		number, err := strconv.Atoi(value)
-		if err != nil {
-			return item, fmt.Errorf("apicontract: %s of %s is not an integer", bound.key, name)
-		}
-		*bound.target = &number
-	}
-	if value := field.Tag.Get("maxLength"); value != "" {
-		number, err := strconv.Atoi(value)
-		if err != nil {
-			return item, fmt.Errorf("apicontract: maxLength of %s is not an integer", name)
-		}
-		item.maxLength = number
 	}
 	return item, nil
+}
+
+func (item param) checkDefault() error {
+	var target reflect.Value
+	switch item.typ {
+	case FieldString:
+		target = reflect.New(reflect.TypeOf("")).Elem()
+	case FieldInt:
+		target = reflect.New(reflect.TypeOf(int64(0))).Elem()
+	case FieldBool:
+		target = reflect.New(reflect.TypeOf(false)).Elem()
+	case FieldTime:
+		target = reflect.New(timeType).Elem()
+	case FieldDate:
+		target = reflect.New(dateType).Elem()
+	case FieldStrings:
+		target = reflect.New(stringsType).Elem()
+	case FieldSort:
+		target = reflect.New(sortType).Elem()
+	case FieldLocation:
+		_, err := loadLocation(item.defaultRaw)
+		return err
+	}
+	if fieldErr, _ := item.set(target, item.name, item.defaultRaw, time.UTC); fieldErr != nil {
+		return fmt.Errorf("%s %s", item.defaultRaw, fieldErr.Detail)
+	}
+	if item.typ == FieldInt {
+		return item.checkIntDefault(target.Int())
+	}
+	return nil
+}
+
+// integerRange is the range of a signed integer of the given size.
+func integerRange(bits int) (int64, int64) {
+	if bits <= 0 || bits >= 64 {
+		return math.MinInt64, math.MaxInt64
+	}
+	return -1 << (bits - 1), 1<<(bits-1) - 1
+}
+
+// checkIntDefault rejects a default the field cannot hold or that a clamp
+// would change, since defaults are stored as declared.
+func (r rules) checkIntDefault(value int64) error {
+	low, high := integerRange(r.bits)
+	if value < low || value > high {
+		return fmt.Errorf("%d does not fit a %d-bit integer", value, r.bits)
+	}
+	if r.maxInt != nil && value > *r.maxInt || r.maximum != nil && float64(value) > *r.maximum {
+		return fmt.Errorf("%d is above the maximum", value)
+	}
+	return nil
 }
 
 func (p *plan) check() error {

@@ -110,9 +110,16 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 	for _, exception := range stale {
 		fmt.Fprintf(stdout, "stale exception, the violation is gone; remove it: %s\n", exception)
 	}
-	fmt.Fprintf(stdout, "%d documents, %d violations, %d accepted by exceptions, %d stale exceptions\n", len(specs), len(open), len(accepted), len(stale))
+	fmt.Fprintf(stdout, "%s, %s, %d accepted by exceptions, %s\n", count(len(specs), "document"), count(len(open), "violation"), len(accepted), count(len(stale), "stale exception"))
 	if len(open) > 0 || len(stale) > 0 {
 		return 1
 	}
 	return 0
+}
+
+func count(n int, noun string) string {
+	if n == 1 {
+		return fmt.Sprintf("1 %s", noun)
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }

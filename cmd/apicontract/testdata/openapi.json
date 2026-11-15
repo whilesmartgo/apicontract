@@ -1,0 +1,25 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "Notes", "version": "1.0.0", "x-whilesmart-contract": "0.2"},
+  "paths": {
+    "/notes": {
+      "get": {
+        "parameters": [
+          {"name": "page", "in": "query", "schema": {"type": "integer"}},
+          {"name": "updatedSince", "in": "query", "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {"description": "Notes", "content": {"application/json": {"schema": {"type": "array", "items": {"type": "object"}}}}},
+          "400": {"description": "Bad request", "content": {"application/json": {"schema": {"type": "object"}}}}
+        }
+      },
+      "post": {
+        "requestBody": {"content": {"application/json": {"schema": {"type": "object", "properties": {"title": {"type": "string"}, "remind_at": {"type": "integer"}}}}}},
+        "responses": {
+          "201": {"description": "Created"},
+          "422": {"description": "Invalid", "content": {"application/problem+json": {"schema": {"type": "object"}}}}
+        }
+      }
+    }
+  }
+}

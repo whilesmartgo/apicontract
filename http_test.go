@@ -95,8 +95,8 @@ func TestCursorIsBoundToPrincipal(t *testing.T) {
 	if recorder.Code != http.StatusBadRequest || body["code"] != apicontract.CodeMalformedQuery {
 		t.Fatalf("status %d body %v", recorder.Code, body)
 	}
-	if _, ok := body["error"].(string); !ok {
-		t.Fatalf("error must be a string message: %v", body)
+	if _, ok := body["title"].(string); !ok || recorder.Header().Get("Content-Type") != apicontract.ProblemContentType {
+		t.Fatalf("problems must be RFC 9457 bodies: %v", body)
 	}
 }
 
