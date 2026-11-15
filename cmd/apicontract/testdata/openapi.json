@@ -1,6 +1,6 @@
 {
   "openapi": "3.1.0",
-  "info": {"title": "Notes", "version": "1.0.0", "x-whilesmart-contract": "0.2"},
+  "info": {"title": "Notes", "version": "1.0.0", "x-whilesmart-contract": "0.1"},
   "paths": {
     "/notes": {
       "get": {

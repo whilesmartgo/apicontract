@@ -170,7 +170,7 @@ func (c *checker) operation(method, path string, query map[string]map[string]any
 	if body, ok := c.resolve(operation["requestBody"]).(map[string]any); ok {
 		content, _ := body["content"].(map[string]any)
 		for _, media := range sortedKeys(content) {
-			if media != "application/json" && !(strings.HasPrefix(media, "application/") && strings.HasSuffix(media, "+json")) {
+			if media != "application/json" && (!strings.HasPrefix(media, "application/") || !strings.HasSuffix(media, "+json")) {
 				continue
 			}
 			entry, _ := content[media].(map[string]any)

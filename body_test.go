@@ -35,10 +35,10 @@ func createHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body createEvent
 		if err := apicontract.BindJSON(r, &body, apicontract.MaxBytes(2048)); err != nil {
-			apicontract.WriteProblem(w, err)
+			_ = apicontract.WriteProblem(w, err)
 			return
 		}
-		apicontract.WriteJSON(w, http.StatusCreated, body)
+		_ = apicontract.WriteJSON(w, http.StatusCreated, body)
 	})
 }
 

@@ -24,7 +24,10 @@ func serve(h http.Handler, method, target, body string) {
 
 func show(recorder *httptest.ResponseRecorder) {
 	var indented bytes.Buffer
-	json.Indent(&indented, bytes.TrimSpace(recorder.Body.Bytes()), "", "  ")
+	body := bytes.TrimSpace(recorder.Body.Bytes())
+	if err := json.Indent(&indented, body, "", "  "); err != nil {
+		indented.Write(body)
+	}
 	fmt.Printf("%d %s\n%s\n", recorder.Code, recorder.Header().Get("Content-Type"), indented.String())
 }
 
@@ -42,7 +45,7 @@ func listNotes(cursors *apicontract.Cursors, all []note) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var q notesList
 		if err := apicontract.BindQuery(r, &q); err != nil {
-			apicontract.WriteProblem(w, err)
+			_ = apicontract.WriteProblem(w, err)
 			return
 		}
 		binding := apicontract.RequestBinding(r, "user-1")
@@ -51,7 +54,7 @@ func listNotes(cursors *apicontract.Cursors, all []note) http.HandlerFunc {
 		}
 		if q.Cursor != "" {
 			if err := cursors.Decode(q.Cursor, binding, &after); err != nil {
-				apicontract.WriteProblem(w, err)
+				_ = apicontract.WriteProblem(w, err)
 				return
 			}
 		}
@@ -61,7 +64,7 @@ func listNotes(cursors *apicontract.Cursors, all []note) http.HandlerFunc {
 		if end < len(all) {
 			next, _ = cursors.Encode(binding, map[string]int{"id": end})
 		}
-		apicontract.WriteList(w, all[start:end], next)
+		_ = apicontract.WriteList(w, all[start:end], next)
 	}
 }
 
@@ -138,10 +141,10 @@ type eventsList struct {
 func listEvents(w http.ResponseWriter, r *http.Request) {
 	var q eventsList
 	if err := apicontract.BindQuery(r, &q); err != nil {
-		apicontract.WriteProblem(w, err)
+		_ = apicontract.WriteProblem(w, err)
 		return
 	}
-	apicontract.WriteJSON(w, http.StatusOK, map[string]any{"limit": q.Limit})
+	_ = apicontract.WriteJSON(w, http.StatusOK, map[string]any{"limit": q.Limit})
 }
 
 func Example_queryErrors() {
@@ -225,10 +228,10 @@ type newEvent struct {
 func createEventHandler(w http.ResponseWriter, r *http.Request) {
 	var body newEvent
 	if err := apicontract.BindJSON(r, &body); err != nil {
-		apicontract.WriteProblem(w, err)
+		_ = apicontract.WriteProblem(w, err)
 		return
 	}
-	apicontract.WriteJSON(w, http.StatusCreated, body)
+	_ = apicontract.WriteJSON(w, http.StatusCreated, body)
 }
 
 func Example_requestBody() {

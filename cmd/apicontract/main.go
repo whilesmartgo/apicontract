@@ -22,17 +22,17 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: apicontract lint|version")
+		_, _ = fmt.Fprintln(stderr, "usage: apicontract lint|version")
 		return 2
 	}
 	switch args[0] {
 	case "version":
-		fmt.Fprintln(stdout, apicontract.Version)
+		_, _ = fmt.Fprintln(stdout, apicontract.Version)
 		return 0
 	case "lint":
 		return runLint(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "unknown command %q\n", args[0])
+		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", args[0])
 		return 2
 	}
 }
@@ -48,7 +48,7 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 	}
 	specs := flags.Args()
 	if len(specs) == 0 {
-		fmt.Fprintln(stderr, "lint: name at least one OpenAPI document")
+		_, _ = fmt.Fprintln(stderr, "lint: name at least one OpenAPI document")
 		return 2
 	}
 
@@ -56,12 +56,12 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 	for _, spec := range specs {
 		data, err := os.ReadFile(spec)
 		if err != nil {
-			fmt.Fprintln(stderr, err)
+			_, _ = fmt.Fprintln(stderr, err)
 			return 2
 		}
 		found, err := lint.Check(spec, data)
 		if err != nil {
-			fmt.Fprintln(stderr, err)
+			_, _ = fmt.Fprintln(stderr, err)
 			return 2
 		}
 		violations = append(violations, found...)
@@ -75,19 +75,19 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 			exceptions = loaded
 		case errors.Is(err, os.ErrNotExist) && *seed != "":
 		default:
-			fmt.Fprintln(stderr, err)
+			_, _ = fmt.Fprintln(stderr, err)
 			return 2
 		}
 	}
 
 	if *seed != "" {
 		if *exceptionsPath == "" {
-			fmt.Fprintln(stderr, "lint: -seed needs -exceptions")
+			_, _ = fmt.Fprintln(stderr, "lint: -seed needs -exceptions")
 			return 2
 		}
 		exceptions = lint.Seed(violations, exceptions, specs, *seed)
 		if err := lint.WriteExceptions(*exceptionsPath, exceptions); err != nil {
-			fmt.Fprintln(stderr, err)
+			_, _ = fmt.Fprintln(stderr, err)
 			return 2
 		}
 	}
@@ -96,21 +96,21 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 	if *reportPath != "" {
 		var report bytes.Buffer
 		if err := lint.WriteReport(&report, accepted, exceptions); err != nil {
-			fmt.Fprintln(stderr, err)
+			_, _ = fmt.Fprintln(stderr, err)
 			return 2
 		}
 		if err := os.WriteFile(*reportPath, report.Bytes(), 0o644); err != nil {
-			fmt.Fprintln(stderr, err)
+			_, _ = fmt.Fprintln(stderr, err)
 			return 2
 		}
 	}
 	for _, violation := range open {
-		fmt.Fprintln(stdout, violation)
+		_, _ = fmt.Fprintln(stdout, violation)
 	}
 	for _, exception := range stale {
-		fmt.Fprintf(stdout, "stale exception, the violation is gone; remove it: %s\n", exception)
+		_, _ = fmt.Fprintf(stdout, "stale exception, the violation is gone; remove it: %s\n", exception)
 	}
-	fmt.Fprintf(stdout, "%s, %s, %d accepted by exceptions, %s\n", count(len(specs), "document"), count(len(open), "violation"), len(accepted), count(len(stale), "stale exception"))
+	_, _ = fmt.Fprintf(stdout, "%s, %s, %d accepted by exceptions, %s\n", count(len(specs), "document"), count(len(open), "violation"), len(accepted), count(len(stale), "stale exception"))
 	if len(open) > 0 || len(stale) > 0 {
 		return 1
 	}

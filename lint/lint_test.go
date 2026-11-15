@@ -97,7 +97,7 @@ func TestExceptions(t *testing.T) {
 func TestStricterShapes(t *testing.T) {
 	document := `{
 	  "openapi": "3.1.0",
-	  "info": {"title": "t", "version": "1", "x-whilesmart-contract": "0.2"},
+	  "info": {"title": "t", "version": "1", "x-whilesmart-contract": "0.1"},
 	  "paths": {
 	    "/composed": {"get": {"responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {"allOf": [{"type": "array", "items": {"type": "string"}}]}}}}}}},
 	    "/nullable": {"get": {"responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {"type": "object", "required": ["items"], "properties": {"items": {"type": ["array", "null"]}}}}}}}}},
@@ -133,7 +133,7 @@ func TestStricterShapes(t *testing.T) {
 func TestReferencesAndComposition(t *testing.T) {
 	document := `{
 	  "openapi": "3.1.0",
-	  "info": {"title": "t", "version": "1", "x-whilesmart-contract": "0.2"},
+	  "info": {"title": "t", "version": "1", "x-whilesmart-contract": "0.1"},
 	  "paths": {
 	    "/a": {"post": {
 	      "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Base", "properties": {"good_name": {"type": "string"}}}}}},
@@ -176,7 +176,7 @@ func TestThirdReviewLint(t *testing.T) {
 	problem := `"422": {"description": "bad", "content": {"application/problem+json": {}}}`
 	document := `{
 	  "openapi": "3.1.0",
-	  "info": {"title": "t", "version": "1", "x-whilesmart-contract": "0.2"},
+	  "info": {"title": "t", "version": "1", "x-whilesmart-contract": "0.1"},
 	  "paths": {
 	    "/tree": {"post": {"requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Node"}}}}, "responses": {` + problem + `}}},
 	    "/closed": {"post": {"requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Base", "properties": {"name": {"type": "string"}}, "additionalProperties": false}}}}, "responses": {` + problem + `}}},

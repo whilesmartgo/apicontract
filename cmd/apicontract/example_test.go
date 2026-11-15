@@ -5,8 +5,14 @@ import (
 )
 
 func Example_lint() {
-	os.Chdir("testdata")
-	defer os.Chdir("..")
+	if err := os.Chdir("testdata"); err != nil {
+		panic(err)
+	}
+	defer func() {
+		if err := os.Chdir(".."); err != nil {
+			panic(err)
+		}
+	}()
 	run([]string{"lint", "openapi.json"}, os.Stdout, os.Stdout)
 	// Output:
 	// openapi.json: GET /notes: error-media-type: the 400 response must be application/problem+json

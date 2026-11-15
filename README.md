@@ -4,7 +4,7 @@ Shared rules and tools for query strings, request bodies, paging and errors in W
 
 Apps that share parameter names, paging and errors can share client code. This module gives Go apps a parser for query strings and JSON bodies, the list response, RFC 9457 error bodies and signed cursors. Its command checks the `openapi.json` of an app written in any language.
 
-Contract version: **0.2**. The package exposes this version as `Version`.
+Contract version: **0.1**. The package exposes this version as `Version`.
 
 ## Standards it builds on
 

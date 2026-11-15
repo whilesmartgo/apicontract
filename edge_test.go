@@ -190,12 +190,12 @@ func TestWriteJSONDoesNotCommitOnEncodingFailure(t *testing.T) {
 	if recorder.Code != http.StatusOK || recorder.Body.Len() != 0 || recorder.Header().Get("Content-Type") != "" {
 		t.Fatalf("nothing must be written: %d %q", recorder.Code, recorder.Body.String())
 	}
-	apicontract.WriteProblem(recorder, errors.New("x"))
+	_ = apicontract.WriteProblem(recorder, errors.New("x"))
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf("the handler must still be able to send a problem: %d", recorder.Code)
 	}
 	reset := httptest.NewRecorder()
-	apicontract.WriteJSON(reset, http.StatusResetContent, map[string]bool{"ok": true})
+	_ = apicontract.WriteJSON(reset, http.StatusResetContent, map[string]bool{"ok": true})
 	if reset.Body.Len() != 0 {
 		t.Fatalf("205 has no content: %q", reset.Body.String())
 	}
