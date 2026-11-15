@@ -2,7 +2,7 @@
 
 ## 0.2.0 (unreleased)
 
-Breaking:
+Changed:
 
 - Error responses are RFC 9457 problem details sent as `application/problem+json`. Responses include `title`, `status` and `code`; `detail`, `type` and `errors` are optional. Field errors use `in`, `name`, `code` and `detail`.
 - Undeclared query parameters are rule violations (`422` unless another input is malformed). Declared parameters sent twice return `400`.
