@@ -1,37 +1,167 @@
 {
   "openapi": "3.1.0",
-  "info": {"title": "Drifting API", "version": "1.0.0"},
+  "info": {
+    "title": "Drifting API",
+    "version": "1.0.0"
+  },
   "paths": {
     "/events": {
       "get": {
         "parameters": [
-          {"name": "from", "in": "query", "schema": {"type": "string"}},
-          {"name": "to", "in": "query", "schema": {"type": "string"}}
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
-        "responses": {"200": {"description": "Success"}}
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
       }
     },
     "/messages": {
       "get": {
         "parameters": [
-          {"name": "page", "in": "query", "schema": {"type": "integer"}},
-          {"name": "page_size", "in": "query", "schema": {"type": "integer"}},
-          {"name": "folderId", "in": "query", "schema": {"type": "string"}}
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "folderId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
-          "200": {"description": "Page", "content": {"application/json": {"schema": {"type": "object", "properties": {"data": {"type": "array", "items": {}}, "total": {"type": "integer"}}}}}},
-          "400": {"description": "Bad request"}
+          "200": {
+            "description": "Page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request"
+          }
         }
       }
     },
     "/tags": {
       "get": {
-        "responses": {"200": {"description": "Tags", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Tags"}}}}}
+        "responses": {
+          "200": {
+            "description": "Tags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tags"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/tags/{id}": {
-      "delete": {"responses": {"204": {"description": "Deleted"}}}
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/notes": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "noteTitle": {
+                    "type": "string"
+                  },
+                  "remind_at": {
+                    "type": "integer"
+                  },
+                  "labels": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "colourHex": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "422": {
+            "description": "Invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
-  "components": {"schemas": {"Tags": {"type": "array", "items": {"type": "string"}}}}
+  "components": {
+    "schemas": {
+      "Tags": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    }
+  }
 }

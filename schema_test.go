@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/whilesmartgo/apicontract"
 	"github.com/whilesmartgo/apicontract/lint"
@@ -28,7 +29,7 @@ func TestInputSchema(t *testing.T) {
 	}
 }
 
-func TestOpenAPIParametersPassLint(t *testing.T) {
+func TestGeneratedSchemasPassLint(t *testing.T) {
 	type query struct {
 		apicontract.Page
 		apicontract.Range
@@ -39,16 +40,30 @@ func TestOpenAPIParametersPassLint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	body, err := apicontract.OpenAPIRequestBody(createEvent{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	document := map[string]any{
 		"openapi": "3.1.0",
 		"info":    map[string]any{"title": "t", "version": "1", apicontract.VersionExtension: apicontract.Version},
-		"paths": map[string]any{"/items": map[string]any{"get": map[string]any{
-			"parameters": parameters,
-			"responses": map[string]any{
-				"200": map[string]any{"description": "ok", "content": map[string]any{"application/json": map[string]any{"schema": readSchema(t, "schema/list.json")}}},
-				"400": map[string]any{"description": "bad"},
+		"paths": map[string]any{"/items": map[string]any{
+			"get": map[string]any{
+				"parameters": parameters,
+				"responses": map[string]any{
+					"200": map[string]any{"description": "ok", "content": map[string]any{"application/json": map[string]any{"schema": readSchema(t, "schema/list.json")}}},
+					"400": apicontract.OpenAPIProblemResponse(400),
+				},
 			},
-		}}},
+			"post": map[string]any{
+				"requestBody": body,
+				"responses": map[string]any{
+					"201": map[string]any{"description": "created"},
+					"400": apicontract.OpenAPIProblemResponse(400),
+					"422": apicontract.OpenAPIProblemResponse(422),
+				},
+			},
+		}},
 	}
 	data, _ := json.Marshal(document)
 	violations, err := lint.Check("generated", data)
@@ -92,6 +107,45 @@ func TestOpenAPIParametersOfMatchesReflection(t *testing.T) {
 		t.Fatal(err)
 	}
 	reflected, err := apicontract.OpenAPIParameters(notesQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(static, reflected) {
+		t.Fatalf("static %v\nreflected %v", static, reflected)
+	}
+}
+
+func TestOpenAPIRequestBodyOfMatchesReflection(t *testing.T) {
+	type location struct {
+		Name string `json:"name" required:"true"`
+	}
+	type body struct {
+		Title    string           `json:"title" required:"true" maxLength:"200"`
+		StartsAt time.Time        `json:"starts_at"`
+		Capacity *int             `json:"capacity" minimum:"1"`
+		Tags     []string         `json:"tags" enum:"a,b"`
+		Places   []location       `json:"places"`
+		Where    *location        `json:"where"`
+		Extra    map[string]any   `json:"extra"`
+		Day      apicontract.Date `json:"day"`
+	}
+	tagOf := func(i int) reflect.StructTag { return reflect.TypeOf(body{}).Field(i).Tag }
+	nested := []apicontract.Field{{Name: "Name", Exported: true, Type: apicontract.FieldString, Tag: `json:"name" required:"true"`}}
+	fields := []apicontract.Field{
+		{Name: "Title", Exported: true, Type: apicontract.FieldString, Tag: tagOf(0)},
+		{Name: "StartsAt", Exported: true, Type: apicontract.FieldTime, Tag: tagOf(1)},
+		{Name: "Capacity", Exported: true, Type: apicontract.FieldInt, Pointer: true, Tag: tagOf(2)},
+		{Name: "Tags", Exported: true, Type: apicontract.FieldStrings, Tag: tagOf(3)},
+		{Name: "Places", Exported: true, Type: apicontract.FieldList, Tag: tagOf(4), Elem: &apicontract.Field{Type: apicontract.FieldStruct, Fields: nested}},
+		{Name: "Where", Exported: true, Type: apicontract.FieldStruct, Pointer: true, Tag: tagOf(5), Fields: nested},
+		{Name: "Extra", Exported: true, Type: apicontract.FieldObject, Tag: tagOf(6)},
+		{Name: "Day", Exported: true, Type: apicontract.FieldDate, Tag: tagOf(7)},
+	}
+	static, err := apicontract.OpenAPIRequestBodyOf(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reflected, err := apicontract.OpenAPIRequestBody(body{})
 	if err != nil {
 		t.Fatal(err)
 	}

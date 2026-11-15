@@ -23,14 +23,14 @@ func handler(cursors *apicontract.Cursors) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var q struct{ apicontract.Page }
 		if err := apicontract.BindQuery(r, &q); err != nil {
-			apicontract.WriteProblem(w, err)
+			_ = apicontract.WriteProblem(w, err)
 			return
 		}
 		binding := apicontract.QueryBinding(r.URL.Query(), r.Header.Get("X-User"))
 		var position struct{ After int }
 		if q.Cursor != "" {
 			if err := cursors.Decode(q.Cursor, binding, &position); err != nil {
-				apicontract.WriteProblem(w, err)
+				_ = apicontract.WriteProblem(w, err)
 				return
 			}
 		}
@@ -39,7 +39,7 @@ func handler(cursors *apicontract.Cursors) http.Handler {
 		if end < len(all) {
 			next, _ = cursors.Encode(binding, struct{ After int }{end})
 		}
-		apicontract.WriteList(w, all[position.After:end], next)
+		_ = apicontract.WriteList(w, all[position.After:end], next)
 	})
 }
 
@@ -95,14 +95,14 @@ func TestCursorIsBoundToPrincipal(t *testing.T) {
 	if recorder.Code != http.StatusBadRequest || body["code"] != apicontract.CodeMalformedQuery {
 		t.Fatalf("status %d body %v", recorder.Code, body)
 	}
-	if _, ok := body["error"].(string); !ok {
-		t.Fatalf("error must be a string message: %v", body)
+	if _, ok := body["title"].(string); !ok || recorder.Header().Get("Content-Type") != apicontract.ProblemContentType {
+		t.Fatalf("problems must be RFC 9457 bodies: %v", body)
 	}
 }
 
 func TestEmptyListIsAnArray(t *testing.T) {
 	recorder := httptest.NewRecorder()
-	apicontract.WriteList[item](recorder, nil, "")
+	_ = apicontract.WriteList[item](recorder, nil, "")
 	if got := strings.TrimSpace(recorder.Body.String()); got != `{"items":[]}` {
 		t.Fatalf("got %s", got)
 	}
@@ -110,7 +110,7 @@ func TestEmptyListIsAnArray(t *testing.T) {
 
 func TestUnknownErrorsDoNotLeak(t *testing.T) {
 	recorder := httptest.NewRecorder()
-	apicontract.WriteProblem(recorder, errors.New("pq: password authentication failed"))
+	_ = apicontract.WriteProblem(recorder, errors.New("pq: password authentication failed"))
 	if recorder.Code != http.StatusInternalServerError || strings.Contains(recorder.Body.String(), "password") {
 		t.Fatalf("status %d body %s", recorder.Code, recorder.Body.String())
 	}

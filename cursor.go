@@ -29,8 +29,13 @@ func NewCursors(key []byte) (*Cursors, error) {
 	return &Cursors{key: append([]byte(nil), key...)}, nil
 }
 
+var errNoKey = errors.New("apicontract: Cursors must be created with NewCursors")
+
 // Encode returns a cursor for position, bound to binding.
 func (c *Cursors) Encode(binding string, position any) (string, error) {
+	if c == nil || len(c.key) < 32 {
+		return "", errNoKey
+	}
 	payload, err := json.Marshal(position)
 	if err != nil {
 		return "", err
@@ -44,9 +49,13 @@ func (c *Cursors) Encode(binding string, position any) (string, error) {
 
 // Decode verifies cursor against binding and decodes its position. A cursor
 // that is malformed, tampered with or bound to something else returns a
-// *Problem with status 400.
+// *Problem with status 400. A Cursors not made by NewCursors returns a plain
+// error, which WriteProblem reports as a 500.
 func (c *Cursors) Decode(cursor, binding string, position any) error {
-	invalid := &Problem{Status: http.StatusBadRequest, Code: CodeMalformedQuery, Message: "The query string could not be parsed.", Fields: []FieldError{{Name: "cursor", Code: FieldInvalidCursor, Message: "is not a cursor issued for this query"}}}
+	if c == nil || len(c.key) < 32 {
+		return errNoKey
+	}
+	invalid := NewProblem(http.StatusBadRequest, CodeMalformedQuery, "", FieldError{In: InQuery, Name: "cursor", Code: FieldInvalidCursor, Detail: "is not a cursor issued for this query"})
 	if len(cursor) > MaxCursorLength {
 		return invalid
 	}
@@ -78,9 +87,21 @@ func (c *Cursors) mac(binding string, payload []byte) []byte {
 	return hash.Sum(nil)
 }
 
+// RequestBinding returns a binding for a cursor from the request's method and
+// path, the query values that shape the result, and the principal parts, such
+// as user and owner IDs. A cursor bound this way is rejected on another route,
+// on the same route for another resource, with another filter, or for another
+// caller. cursor and limit are left out so a client can change the page size
+// between pages.
+func RequestBinding(r *http.Request, principal ...string) string {
+	parts := append([]string{r.Method, r.URL.EscapedPath()}, principal...)
+	return QueryBinding(r.URL.Query(), parts...)
+}
+
 // QueryBinding returns a binding for a cursor from the query values that shape
-// the result and from the principal parts, such as user and owner IDs. cursor
-// and limit are left out so a client can change the page size between pages.
+// the result and from the principal parts. Prefer RequestBinding, which also
+// binds the route; QueryBinding alone lets a cursor from one route verify on
+// another route with the same query and caller.
 func QueryBinding(values url.Values, principal ...string) string {
 	shaped := url.Values{}
 	for key, list := range values {

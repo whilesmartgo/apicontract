@@ -1,33 +1,175 @@
 {
   "openapi": "3.1.0",
-  "info": {"title": "Conforming API", "version": "1.0.0", "x-whilesmart-contract": "0.1"},
+  "info": {
+    "title": "Conforming API",
+    "version": "1.0.0",
+    "x-whilesmart-contract": "0.1"
+  },
   "paths": {
     "/events": {
-      "parameters": [{"$ref": "#/components/parameters/Limit"}],
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Limit"
+        }
+      ],
       "get": {
         "parameters": [
-          {"name": "cursor", "in": "query", "schema": {"type": "string", "maxLength": 2048}},
-          {"name": "from", "in": "query", "schema": {"type": "string", "anyOf": [{"format": "date-time"}, {"format": "date"}]}},
-          {"name": "updated_to", "in": "query", "schema": {"type": "string", "format": "date-time"}},
-          {"name": "search", "in": "query", "deprecated": true, "schema": {"type": "string"}}
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 2048
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "anyOf": [
+                {
+                  "format": "date-time"
+                },
+                {
+                  "format": "date"
+                }
+              ]
+            }
+          },
+          {
+            "name": "updated_to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "deprecated": true,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
-          "200": {"description": "Events", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Events"}}}},
-          "400": {"$ref": "#/components/responses/Error"}
+          "200": {
+            "description": "Events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Events"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          }
         }
       },
       "post": {
-        "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}},
-        "responses": {"201": {"description": "Created"}, "422": {"$ref": "#/components/responses/Error"}}
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "title"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "starts_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "attendees": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "email": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
       }
     },
     "/events/{id}/attachment": {
-      "get": {"responses": {"200": {"description": "File", "content": {"application/octet-stream": {}}}}}
+      "get": {
+        "responses": {
+          "200": {
+            "description": "File",
+            "content": {
+              "application/octet-stream": {}
+            }
+          }
+        }
+      }
     }
   },
   "components": {
-    "parameters": {"Limit": {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 200}}},
-    "responses": {"Error": {"description": "Error", "content": {"application/json": {"schema": {"type": "object"}}}}},
-    "schemas": {"Events": {"type": "object", "properties": {"items": {"type": "array", "items": {"type": "object"}}, "next_cursor": {"type": "string"}}}}
+    "parameters": {
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Error",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Events": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ]
+      }
+    }
   }
 }

@@ -3,6 +3,7 @@ package apicontract_test
 import (
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -61,11 +62,11 @@ func TestDefaultsAndClamp(t *testing.T) {
 
 func TestMalformedIs400AndRuleBreakIs422(t *testing.T) {
 	_, err := bind[eventsQuery](t, "limit=ten")
-	if p := problemOf(t, err); p.Status != http.StatusBadRequest || p.Fields[0].Name != "limit" || p.Fields[0].Code != apicontract.FieldInvalid {
+	if p := problemOf(t, err); p.Status != http.StatusBadRequest || p.Errors[0].Name != "limit" || p.Errors[0].Code != apicontract.FieldInvalid {
 		t.Fatalf("got %+v", p)
 	}
 	_, err = bind[eventsQuery](t, "limit=0")
-	if p := problemOf(t, err); p.Status != http.StatusUnprocessableEntity || p.Fields[0].Code != apicontract.FieldOutOfRange {
+	if p := problemOf(t, err); p.Status != http.StatusUnprocessableEntity || p.Errors[0].Code != apicontract.FieldOutOfRange {
 		t.Fatalf("got %+v", p)
 	}
 	_, err = bind[eventsQuery](t, "from=2026-11-14T10:00:00")
@@ -73,7 +74,7 @@ func TestMalformedIs400AndRuleBreakIs422(t *testing.T) {
 		t.Fatalf("timestamp without offset accepted: %+v", p)
 	}
 	_, err = bind[eventsQuery](t, "limit=0&from=nope")
-	if p := problemOf(t, err); p.Status != http.StatusBadRequest || len(p.Fields) != 2 {
+	if p := problemOf(t, err); p.Status != http.StatusBadRequest || len(p.Errors) != 2 {
 		t.Fatalf("a malformed value must make the whole problem a 400 listing every field: %+v", p)
 	}
 }
@@ -95,11 +96,11 @@ func TestRangeAcceptsDaysAndTimestamps(t *testing.T) {
 		t.Fatalf("timestamps must keep their offsets: %s %s", q.From, q.To)
 	}
 	_, err = bind[eventsQuery](t, "from=2026-11-15&to=2026-11-14")
-	if p := problemOf(t, err); p.Status != http.StatusUnprocessableEntity || p.Fields[0].Name != "to" {
+	if p := problemOf(t, err); p.Status != http.StatusUnprocessableEntity || p.Errors[0].Name != "to" {
 		t.Fatalf("got %+v", p)
 	}
 	_, err = bind[eventsQuery](t, "tz=Local")
-	if p := problemOf(t, err); p.Status != http.StatusBadRequest || p.Fields[0].Name != "tz" {
+	if p := problemOf(t, err); p.Status != http.StatusBadRequest || p.Errors[0].Name != "tz" {
 		t.Fatalf("got %+v", p)
 	}
 }
@@ -113,7 +114,7 @@ func TestPrefixedRange(t *testing.T) {
 		t.Fatalf("got %+v", q)
 	}
 	_, err = bind[notesQuery](t, "")
-	if p := problemOf(t, err); p.Status != http.StatusUnprocessableEntity || p.Fields[0].Code != apicontract.FieldRequired {
+	if p := problemOf(t, err); p.Status != http.StatusUnprocessableEntity || p.Errors[0].Code != apicontract.FieldRequired {
 		t.Fatalf("got %+v", p)
 	}
 }
@@ -130,11 +131,11 @@ func TestDeprecatedAliases(t *testing.T) {
 		t.Fatalf("end alias must take the end bound of to: %s", q.To)
 	}
 	_, err = bind[eventsQuery](t, "page_size=20&limit=30")
-	if p := problemOf(t, err); p.Status != http.StatusUnprocessableEntity || p.Fields[0].Code != apicontract.FieldConflict {
+	if p := problemOf(t, err); p.Status != http.StatusUnprocessableEntity || p.Errors[0].Code != apicontract.FieldConflict {
 		t.Fatalf("got %+v", p)
 	}
 	_, err = bind[eventsQuery](t, "page_size=many")
-	if p := problemOf(t, err); p.Fields[0].Name != "page_size" {
+	if p := problemOf(t, err); p.Errors[0].Name != "page_size" {
 		t.Fatalf("errors must name the parameter the caller sent: %+v", p)
 	}
 }
@@ -174,5 +175,35 @@ func TestInvalidStructs(t *testing.T) {
 		if err == nil || errors.As(err, &problem) {
 			t.Fatalf("%T: expected a programming error, got %v", target, err)
 		}
+	}
+}
+
+func TestUndeclaredAndRepeatedParameters(t *testing.T) {
+	_, err := bind[eventsQuery](t, "limt=20&colour=red")
+	p := problemOf(t, err)
+	if p.Status != http.StatusUnprocessableEntity || p.Code != apicontract.CodeInvalidQuery || len(p.Errors) != 2 || p.Errors[0].Name != "colour" || p.Errors[1].Name != "limt" || p.Errors[0].Code != apicontract.FieldUnknown {
+		t.Fatalf("got %+v", p)
+	}
+	_, err = bind[eventsQuery](t, "limit=20&limit=30")
+	if p := problemOf(t, err); p.Status != http.StatusBadRequest || p.Errors[0].Name != "limit" {
+		t.Fatalf("got %+v", p)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/events?q=%zz", nil)
+	if p := problemOf(t, apicontract.BindQuery(request, &eventsQuery{})); p.Status != http.StatusBadRequest {
+		t.Fatalf("got %+v", p)
+	}
+}
+
+func TestDateParameter(t *testing.T) {
+	type dayQuery struct {
+		Day apicontract.Date `query:"day" required:"true"`
+	}
+	q, err := bind[dayQuery](t, "day=2026-11-14")
+	if err != nil || q.Day.String() != "2026-11-14" {
+		t.Fatalf("got %v %v", q.Day, err)
+	}
+	_, err = bind[dayQuery](t, "day=2026-02-30")
+	if p := problemOf(t, err); p.Status != http.StatusBadRequest {
+		t.Fatalf("got %+v", p)
 	}
 }
